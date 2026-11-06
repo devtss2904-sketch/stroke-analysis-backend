@@ -42,6 +42,10 @@ class OtpRepository extends BaseRepository {
   async markAsUsed(id) {
     return this.model.findByIdAndUpdate(id, { isUsed: true }, { new: true });
   }
+
+  async incrementAttempts(id) {
+    return this.model.findByIdAndUpdate(id, { $inc: { attempts: 1 } }, { new: true });
+  }
 }
 
 module.exports = new OtpRepository();

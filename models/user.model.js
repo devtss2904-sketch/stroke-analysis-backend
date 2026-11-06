@@ -30,15 +30,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
       lowercase: true,
-      sparse: true,
-      index: true,
       match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email address'],
     },
     phoneNumber: {
       type: String,
       trim: true,
-      sparse: true,
-      index: true,
     },
     address: {
       type: String,
@@ -69,7 +65,7 @@ const userSchema = new mongoose.Schema(
     },
     googleId: {
       type: String,
-      sparse: true,
+      trim: true,
       default: null,
     },
     isEmailVerified: {
@@ -114,6 +110,33 @@ userSchema.virtual('fullName').get(function () {
   }
   return this.firstName || this.lastName || '';
 });
+
+// Enforce unique non-empty email across collection
+userSchema.index(
+  { email: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { email: { $type: 'string', $gt: '' } },
+  }
+);
+
+// Enforce unique non-empty phone number across collection
+userSchema.index(
+  { phoneNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { phoneNumber: { $type: 'string', $gt: '' } },
+  }
+);
+
+// Enforce unique non-empty Google ID across collection
+userSchema.index(
+  { googleId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { googleId: { $type: 'string', $gt: '' } },
+  }
+);
 
 const User = mongoose.model('User', userSchema);
 

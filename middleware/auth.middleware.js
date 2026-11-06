@@ -5,7 +5,7 @@ const ApiError = require('../utils/apiError');
 const asyncHandler = require('../utils/asyncHandler');
 
 /**
- * JWT Authentication Middleware for Mobile App APIs
+ * Strict JWT Authentication Middleware for Protected Mobile APIs
  */
 const authenticateJwt = asyncHandler(async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -38,5 +38,34 @@ const authenticateJwt = asyncHandler(async (req, res, next) => {
   }
 });
 
-module.exports = authenticateJwt;
+/**
+ * Optional JWT Middleware: Attaches req.user if a valid token is present,
+ * but allows the request to continue gracefully with req.user = null if unauthenticated.
+ * Ideal for telemetry/logging endpoints so pre-login crash logs can still be recorded!
+ */
+const optionalJwt = asyncHandler(async (req, res, next) => {
+  const authHeader = req.headers ? req.headers.authorization : null;
 
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    req.user = null;
+    return next();
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, envConfig.jwt.secret);
+    const user = await userRepository.findById(decoded.sub);
+    req.user = user && user.status !== 'suspended' ? user : null;
+  } catch (error) {
+    req.user = null;
+  }
+
+  return next();
+});
+
+// Support both default import and destructuring
+authenticateJwt.authenticateJwt = authenticateJwt;
+authenticateJwt.optionalJwt = optionalJwt;
+
+module.exports = authenticateJwt;

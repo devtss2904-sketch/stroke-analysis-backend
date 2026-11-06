@@ -3,6 +3,7 @@ const authRoutes = require('./auth.routes');
 const userRoutes = require('./user.routes');
 const putterRoutes = require('./putter.routes');
 const putterRecordRoutes = require('./putterRecord.routes');
+const appLogRoutes = require('./appLog.routes');
 const ApiResponse = require('../utils/apiResponse');
 
 const router = express.Router();
@@ -41,6 +42,12 @@ router.get('/', (req, res) => {
         getRecord: 'GET /api/v1/putter-records/:id',
         deleteRecord: 'DELETE /api/v1/putter-records/:id',
       },
+      appLogs: {
+        recordLog: 'POST /api/v1/app-logs',
+        getLogs: 'GET /api/v1/app-logs',
+        getLogById: 'GET /api/v1/app-logs/:id',
+        clearLogs: 'DELETE /api/v1/app-logs',
+      },
     },
   });
 });
@@ -50,5 +57,6 @@ router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/putters', putterRoutes);
 router.use('/putter-records', putterRecordRoutes);
+router.use('/app-logs', appLogRoutes);
 
 module.exports = router;

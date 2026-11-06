@@ -4,6 +4,10 @@ const path = require('path');
 // Load environment variables from .env file
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'makefield_stroke_analysis_super_secret_jwt_key_2026')) {
+  throw new Error('SECURITY ERROR: A secure, unique JWT_SECRET must be set in production environment.');
+}
+
 const envConfig = {
   port: parseInt(process.env.PORT || '5000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',

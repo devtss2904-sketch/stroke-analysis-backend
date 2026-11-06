@@ -296,3 +296,29 @@ The record API and database store:
 - `GET /api/v1/putter-records/summary` — Retrieve metrics summary and total records.
 - `GET /api/v1/putter-records/:id` — Retrieve single record details.
 - `DELETE /api/v1/putter-records/:id` — Delete a record.
+
+---
+
+## 📱 Mobile Application Logs Module (Debugging & Troubleshooting)
+
+Allows mobile app developers to push client-side application logs, errors, crashes, and BLE telemetry directly into MongoDB so issues can be rapidly identified and diagnosed in production and development.
+
+### Log Model Fields
+| Field Name | Type | Description |
+| :--- | :--- | :--- |
+| `userId` | `ObjectId` (optional) | Authenticated user ID (automatically attached if logged in) |
+| `level` | `String` | `'debug'`, `'info'`, `'warn'`, `'error'`, `'fatal'` (default: `'info'`) |
+| `tag` | `String` | Feature tag (e.g. `'BLE'`, `'AUTH'`, `'PUTTER'`, `'SYNC'`, `'NETWORK'`) |
+| `message` | `String` (required) | Main log description |
+| `context` | `Object` | Any arbitrary JSON state, function arguments, or sensor readings |
+| `deviceInfo` | `Object` | `{ platform, appVersion, osVersion, deviceModel, deviceId, network }` |
+| `error` | `Object` | `{ name, message, stack, code }` captured from catch blocks |
+| `timestamp` | `Date` | Timestamp of event on client device (default: `Date.now`) |
+
+> Auto-Expiration: Logs automatically expire after 30 days via MongoDB TTL index to prevent database bloat.
+
+### Endpoints
+- `POST /api/v1/app-logs` — Record client log (supports both unauthenticated crash logs & authenticated user logs; accepts single log or `{ "logs": [...] }` batch).
+- `GET /api/v1/app-logs` — Query/filter logs (`?level=error&tag=BLE&search=peripheral&page=1&limit=50`).
+- `GET /api/v1/app-logs/:id` — Get single log detail.
+- `DELETE /api/v1/app-logs?days=30` — Clear logs older than X days.

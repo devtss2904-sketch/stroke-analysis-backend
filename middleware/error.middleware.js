@@ -17,8 +17,13 @@ const errorMiddleware = (err, req, res, next) => {
 
   // Handle Mongoose duplicate key error (E11000)
   if (err.code === 11000) {
-    const field = Object.keys(err.keyValue)[0];
-    error = ApiError.badRequest(`Duplicate field value entered: ${field}`);
+    const field = err.keyValue
+      ? Object.keys(err.keyValue)[0]
+      : (err.keyPattern ? Object.keys(err.keyPattern)[0] : 'field');
+    const fieldName = field.charAt(0).toUpperCase() + field.slice(1);
+    error = ApiError.badRequest(`${fieldName} is already in use by another account`, [
+      `${fieldName} already registered`,
+    ]);
   }
 
   // Handle Mongoose CastError (invalid ObjectId)

@@ -1,6 +1,7 @@
 const userRepository = require('../repositories/user.repository');
 const ApiError = require('../utils/apiError');
 const envConfig = require('../config/env.config');
+const { normalizeEmail, normalizePhone } = require('../utils/normalize');
 
 class UserService {
   async getProfile(userId) {
@@ -21,8 +22,8 @@ class UserService {
     // - If user registered using Email (or Google), the email field cannot be changed.
     // - If user registered using Phone Number, the phone number field cannot be changed.
     if ((user.authProvider === 'email' || user.authProvider === 'google') && updateData.email !== undefined) {
-      const incomingEmail = (updateData.email || '').toLowerCase().trim();
-      const registeredEmail = (user.email || '').toLowerCase().trim();
+      const incomingEmail = normalizeEmail(updateData.email);
+      const registeredEmail = normalizeEmail(user.email);
       if (incomingEmail !== registeredEmail) {
         throw ApiError.badRequest('Your registration email address cannot be changed');
       }
@@ -31,8 +32,8 @@ class UserService {
     }
 
     if (user.authProvider === 'phone' && updateData.phoneNumber !== undefined) {
-      const incomingPhone = (updateData.phoneNumber || '').trim();
-      const registeredPhone = (user.phoneNumber || '').trim();
+      const incomingPhone = normalizePhone(updateData.phoneNumber);
+      const registeredPhone = normalizePhone(user.phoneNumber);
       if (incomingPhone !== registeredPhone) {
         throw ApiError.badRequest('Your registration phone number cannot be changed');
       }
@@ -42,8 +43,8 @@ class UserService {
 
     // 2. Uniqueness check for email (e.g. secondary email added/updated by a phone-registered user)
     if (updateData.email) {
-      const cleanEmail = updateData.email.toLowerCase().trim();
-      if (cleanEmail !== (user.email || '').toLowerCase().trim()) {
+      const cleanEmail = normalizeEmail(updateData.email);
+      if (cleanEmail && cleanEmail !== normalizeEmail(user.email)) {
         const existing = await userRepository.findByEmail(cleanEmail);
         if (existing && existing._id.toString() !== userId.toString()) {
           throw ApiError.badRequest('Email is already registered by another account');
@@ -56,8 +57,8 @@ class UserService {
 
     // 3. Uniqueness check for phone number (e.g. secondary phone added/updated by an email-registered user)
     if (updateData.phoneNumber) {
-      const cleanPhone = updateData.phoneNumber.trim();
-      if (cleanPhone !== (user.phoneNumber || '').trim()) {
+      const cleanPhone = normalizePhone(updateData.phoneNumber);
+      if (cleanPhone && cleanPhone !== normalizePhone(user.phoneNumber)) {
         const existing = await userRepository.findByPhone(cleanPhone);
         if (existing && existing._id.toString() !== userId.toString()) {
           throw ApiError.badRequest('Phone number is already registered by another account');

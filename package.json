@@ -7,7 +7,11 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "echo \"Build completed successfully\"",
-    "check-db": "node scripts/checkDb.js"
+    "check-db": "node scripts/checkDb.js",
+    "cleanup-duplicates": "node scripts/cleanup-duplicates.js",
+    "test-uniqueness": "node scripts/test-uniqueness.js",
+    "test-security": "node scripts/test-security.js",
+    "test-app-logs": "node scripts/test-app-logs.js"
   },
   "keywords": [
     "nodejs",

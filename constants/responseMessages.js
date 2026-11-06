@@ -36,6 +36,9 @@ const RESPONSE_MESSAGES = {
   PUTTER_RECORD_NOT_FOUND: 'Putter record not found',
   PUTTER_RECORD_DELETED: 'Putter record deleted successfully',
   PUTTER_SUMMARY_FETCHED: 'Putter performance metrics retrieved successfully',
+  LOG_RECORDED: 'Application log recorded successfully',
+  LOGS_FETCHED: 'Application logs retrieved successfully',
+  LOGS_CLEARED: 'Application logs cleared successfully',
 };
 
 module.exports = RESPONSE_MESSAGES;

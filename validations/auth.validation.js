@@ -29,9 +29,13 @@ const verifyOtpSchema = Joi.object({
 });
 
 const googleLoginSchema = Joi.object({
-  googleId: Joi.string().optional(),
+  googleId: Joi.string().trim().min(3).max(128).required().messages({
+    'string.empty': 'Google ID is required for Google sign-in',
+    'any.required': 'Google ID is required for Google sign-in',
+  }),
   email: Joi.string().email().lowercase().trim().required().messages({
     'string.empty': 'Email is required for Google sign-in',
+    'any.required': 'Email is required for Google sign-in',
   }),
   firstName: Joi.string().trim().allow('').optional(),
   lastName: Joi.string().trim().allow('').optional(),

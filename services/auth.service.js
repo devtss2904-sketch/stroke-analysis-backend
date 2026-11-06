@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const envConfig = require('../config/env.config');
 const userRepository = require('../repositories/user.repository');
 const otpRepository = require('../repositories/otp.repository');
@@ -6,13 +7,14 @@ const mailService = require('./mail.service');
 const smsService = require('./sms.service');
 const ApiError = require('../utils/apiError');
 const logger = require('../utils/logger');
+const { normalizeEmail, normalizePhone } = require('../utils/normalize');
 
 class AuthService {
   /**
-   * Generate a random 4-digit numeric OTP code
+   * Generate a cryptographically secure 4-digit numeric OTP code (1000 - 9999)
    */
   generateOtpCode() {
-    return Math.floor(1000 + Math.random() * 9000).toString();
+    return crypto.randomInt(1000, 10000).toString();
   }
 
   /**
@@ -97,6 +99,7 @@ class AuthService {
   /**
    * Send OTP for "Continue with Email" or "Continue with Phone"
    * Automatically creates a new user record if not registered yet.
+   * Race-condition and duplicate-proof: handles E11000 gracefully.
    * Enforces 1-minute cooldown before sending a second OTP.
    */
   async sendLoginOtp({ identifier, type }) {
@@ -104,22 +107,37 @@ class AuthService {
       throw ApiError.badRequest('Identifier (email or mobile number) is required');
     }
 
-    const cleanIdentifier = identifier.trim().toLowerCase();
+    const cleanIdentifier = type === 'email' ? normalizeEmail(identifier) : normalizePhone(identifier);
+    if (!cleanIdentifier) {
+      throw ApiError.badRequest(`Invalid ${type === 'email' ? 'email address' : 'mobile number'}`);
+    }
 
     // Check if user already exists
     let user = await userRepository.findByIdentifier(cleanIdentifier);
     let isNewUser = false;
 
     if (!user) {
-      // User is not registered! Create new entry in DB
-      user = await userRepository.create({
-        [type === 'email' ? 'email' : 'phoneNumber']: cleanIdentifier,
-        authProvider: type,
-        status: 'pending',
-        isProfileComplete: false,
-      });
-      isNewUser = true;
-      logger.info(`New user entry created via ${type} login flow: ${cleanIdentifier}`);
+      try {
+        // User is not registered! Create new entry in DB
+        user = await userRepository.create({
+          [type === 'email' ? 'email' : 'phoneNumber']: cleanIdentifier,
+          authProvider: type,
+          status: 'pending',
+          isProfileComplete: false,
+        });
+        isNewUser = true;
+        logger.info(`New user entry created via ${type} login flow: ${cleanIdentifier}`);
+      } catch (err) {
+        // Race condition protection: If another concurrent request just created the user
+        if (err.code === 11000) {
+          user = await userRepository.findByIdentifier(cleanIdentifier);
+          if (!user) throw err;
+          isNewUser = !user.isProfileComplete || (!user.firstName && !user.lastName);
+          logger.info(`Concurrent user creation detected and resolved for: ${cleanIdentifier}`);
+        } else {
+          throw err;
+        }
+      }
     } else {
       // Existing user: check if profile onboarding is complete
       isNewUser = !user.isProfileComplete || (!user.firstName && !user.lastName);
@@ -144,8 +162,13 @@ class AuthService {
       throw ApiError.badRequest('Identifier is required to resend OTP');
     }
 
-    const cleanIdentifier = identifier.trim().toLowerCase();
-    const type = cleanIdentifier.includes('@') ? 'email' : 'phone';
+    const isEmail = identifier.toString().includes('@');
+    const cleanIdentifier = isEmail ? normalizeEmail(identifier) : normalizePhone(identifier);
+    const type = isEmail ? 'email' : 'phone';
+
+    if (!cleanIdentifier) {
+      throw ApiError.badRequest('Invalid identifier for OTP resend');
+    }
 
     // Find previous active/recent OTP to match purpose if not provided
     const recentOtp = await otpRepository.findMostRecent(cleanIdentifier, purpose);
@@ -165,11 +188,21 @@ class AuthService {
       throw ApiError.badRequest('Identifier and 4-digit OTP are required');
     }
 
-    const cleanIdentifier = identifier.trim().toLowerCase();
+    const isEmail = identifier.toString().includes('@');
+    const cleanIdentifier = isEmail ? normalizeEmail(identifier) : normalizePhone(identifier);
     const cleanOtp = otp.toString().trim();
 
+    if (!cleanIdentifier) {
+      throw ApiError.badRequest('Invalid identifier provided');
+    }
+
     // Find active unexpired OTP
-    const activeOtp = await otpRepository.findLatestActiveOtp(cleanIdentifier, purpose);
+    let activeOtp = await otpRepository.findLatestActiveOtp(cleanIdentifier, purpose);
+
+    // Fallback: If not found and identifier is phone, check raw trimmed identifier in case OTP was stored before normalization
+    if (!activeOtp && !isEmail && identifier.toString().trim() !== cleanIdentifier) {
+      activeOtp = await otpRepository.findLatestActiveOtp(identifier.toString().trim(), purpose);
+    }
 
     if (!activeOtp) {
       // Check if there was an expired one
@@ -181,7 +214,14 @@ class AuthService {
     }
 
     if (activeOtp.otp !== cleanOtp) {
-      throw ApiError.badRequest('Invalid OTP entered. Please check your 4-digit code.');
+      const currentAttempts = (activeOtp.attempts || 0) + 1;
+      if (currentAttempts >= 5) {
+        await otpRepository.markAsUsed(activeOtp._id);
+        throw ApiError.badRequest('Too many failed OTP attempts. This code has been invalidated for security. Please request a new code.');
+      }
+      await otpRepository.incrementAttempts(activeOtp._id);
+      const remainingAttempts = 5 - currentAttempts;
+      throw ApiError.badRequest(`Invalid OTP entered. You have ${remainingAttempts} attempt(s) remaining.`);
     }
 
     // Parallelize OTP markAsUsed and user lookup for maximum performance
@@ -237,20 +277,33 @@ class AuthService {
    * - If existing user with complete profile: navigateTo = "home"
    */
   async googleLogin({ googleId, email, firstName, lastName, profilePhoto }) {
-    if (!email) {
-      throw ApiError.badRequest('Google email is required');
+    if (!email || !googleId) {
+      throw ApiError.badRequest('Google ID and email are required');
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = normalizeEmail(email);
+    if (!cleanEmail) {
+      throw ApiError.badRequest('Invalid Google email address');
+    }
+
+    const cleanGoogleId = googleId.toString().trim();
+    if (!cleanGoogleId) {
+      throw ApiError.badRequest('Invalid Google ID provided');
+    }
 
     // Check if user exists by googleId or email
-    let user = (await userRepository.findByGoogleId(googleId)) || (await userRepository.findByEmail(cleanEmail));
+    let user = (await userRepository.findByGoogleId(cleanGoogleId)) || (await userRepository.findByEmail(cleanEmail));
     let isNewUser = false;
 
     if (user) {
+      // Security Check: If account already has a Google ID linked, ensure incoming Google ID strictly matches
+      if (user.googleId && user.googleId !== cleanGoogleId) {
+        throw ApiError.unauthorized('Google account ID does not match the linked account');
+      }
+
       // Update existing user with Google credentials
       const updateData = {
-        googleId: googleId || user.googleId,
+        googleId: cleanGoogleId,
         isEmailVerified: true,
         status: 'active',
         lastLoginAt: new Date(),
@@ -269,20 +322,30 @@ class AuthService {
       user = await userRepository.updateById(user._id, updateData);
       isNewUser = !user.isProfileComplete || (!user.firstName && !user.lastName);
     } else {
-      // Create new user directly
-      isNewUser = true;
-      user = await userRepository.create({
-        googleId,
-        email: cleanEmail,
-        firstName: firstName || '',
-        lastName: lastName || '',
-        profilePhoto: profilePhoto || null,
-        authProvider: 'google',
-        isEmailVerified: true,
-        status: 'active',
-        isProfileComplete: Boolean(firstName && lastName),
-        lastLoginAt: new Date(),
-      });
+      // Create new user directly (race-condition protected)
+      try {
+        isNewUser = true;
+        user = await userRepository.create({
+          ...(cleanGoogleId && { googleId: cleanGoogleId }),
+          email: cleanEmail,
+          firstName: firstName || '',
+          lastName: lastName || '',
+          profilePhoto: profilePhoto || null,
+          authProvider: 'google',
+          isEmailVerified: true,
+          status: 'active',
+          isProfileComplete: Boolean(firstName && lastName),
+          lastLoginAt: new Date(),
+        });
+      } catch (err) {
+        if (err.code === 11000) {
+          user = (cleanGoogleId ? await userRepository.findByGoogleId(cleanGoogleId) : null) || (await userRepository.findByEmail(cleanEmail));
+          if (!user) throw err;
+          isNewUser = !user.isProfileComplete || (!user.firstName && !user.lastName);
+        } else {
+          throw err;
+        }
+      }
     }
 
     const navigateTo = isNewUser ? 'get_started' : 'home';

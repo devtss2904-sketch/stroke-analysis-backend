@@ -66,6 +66,11 @@ const putterSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    serviceUUID: {
+      type: String,
+      trim: true,
+      default: null,
+    },
 
     // Operational Status
     isDefault: {
@@ -100,8 +105,23 @@ const putterSchema = new mongoose.Schema(
   {
     timestamps: true,
     versionKey: false,
+    toJSON: {
+      virtuals: true,
+    },
+    toObject: {
+      virtuals: true,
+    },
   }
 );
+
+// Virtual alias for serviceUuid (accepts and exposes lowercase variation)
+putterSchema.virtual('serviceUuid')
+  .get(function () {
+    return this.serviceUUID;
+  })
+  .set(function (val) {
+    this.serviceUUID = val;
+  });
 
 // Compound index for querying user's putters
 putterSchema.index({ userId: 1, isActive: 1 });

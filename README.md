@@ -259,6 +259,7 @@ Manage multiple smart putter devices associated with a user's account. Supports 
 | `connectionType` | `String` | `'bluetooth'`, `'ip'`, or `'unknown'` |
 | `macAddress` | `String` | Bluetooth MAC address (e.g. `AA:BB:CC:11:22:33`) |
 | `bluetoothName`| `String` | Local BLE advertising name |
+| `serviceUUID` | `String` | Bluetooth BLE Service UUID (e.g. `0000FFE0-0000-1000-8000-00805F9B34FB`) |
 | `ipAddress` | `String` | Device IPv4 address (e.g. `192.168.1.150`) |
 | `port` | `Number` | IP communication port (e.g. `8080`) |
 | `isDefault` | `Boolean` | True for the user's primary selected putter |

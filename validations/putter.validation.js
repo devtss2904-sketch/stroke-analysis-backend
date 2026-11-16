@@ -21,6 +21,8 @@ const createPutterSchema = Joi.object({
   }),
   port: Joi.number().integer().min(1).max(65535).optional(),
   bluetoothName: Joi.string().trim().max(100).allow('').optional(),
+  serviceUUID: Joi.string().trim().max(100).allow(null, '').optional(),
+  serviceUuid: Joi.string().trim().max(100).allow(null, '').optional(),
   isDefault: Joi.boolean().optional(),
 });
 
@@ -33,6 +35,8 @@ const updatePutterSchema = Joi.object({
   ipAddress: Joi.string().ip({ version: ['ipv4'] }).allow(null, '').optional(),
   port: Joi.number().integer().min(1).max(65535).allow(null).optional(),
   bluetoothName: Joi.string().trim().max(100).allow('').optional(),
+  serviceUUID: Joi.string().trim().max(100).allow(null, '').optional(),
+  serviceUuid: Joi.string().trim().max(100).allow(null, '').optional(),
   isDefault: Joi.boolean().optional(),
   isActive: Joi.boolean().optional(),
 }).min(1);

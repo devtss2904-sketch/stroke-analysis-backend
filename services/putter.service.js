@@ -9,6 +9,11 @@ class PutterService {
   async createPutter(userId, putterData) {
     const existingCount = await putterRepository.countByUserId(userId, { isActive: true });
 
+    // Normalize serviceUUID / serviceUuid
+    if (putterData.serviceUuid && !putterData.serviceUUID) {
+      putterData.serviceUUID = putterData.serviceUuid;
+    }
+
     // If it's the user's first putter, automatically make it the default putter
     let isDefault = putterData.isDefault !== undefined ? putterData.isDefault : existingCount === 0;
 
@@ -47,6 +52,7 @@ class PutterService {
         { name: { $regex: query.search.trim(), $options: 'i' } },
         { putterType: { $regex: query.search.trim(), $options: 'i' } },
         { bluetoothName: { $regex: query.search.trim(), $options: 'i' } },
+        { serviceUUID: { $regex: query.search.trim(), $options: 'i' } },
       ];
     }
 
@@ -75,6 +81,10 @@ class PutterService {
 
     if (updateData.isDefault === true) {
       await putterRepository.clearUserDefaultPutter(userId);
+    }
+
+    if (updateData.serviceUuid && !updateData.serviceUUID) {
+      updateData.serviceUUID = updateData.serviceUuid;
     }
 
     const updated = await putterRepository.updateById(putterId, updateData);

@@ -250,6 +250,9 @@ class AuthService {
     }
 
     const updatedUser = await userRepository.updateById(user._id, updateFields);
+    if (!updatedUser) {
+      throw ApiError.notFound('User account could not be updated.');
+    }
 
     // Determine navigation target
     const isNewUser = !updatedUser.isProfileComplete || (!updatedUser.firstName && !updatedUser.lastName);
@@ -320,6 +323,9 @@ class AuthService {
       }
 
       user = await userRepository.updateById(user._id, updateData);
+      if (!user) {
+        throw ApiError.notFound('User account could not be updated.');
+      }
       isNewUser = !user.isProfileComplete || (!user.firstName && !user.lastName);
     } else {
       // Create new user directly (race-condition protected)
